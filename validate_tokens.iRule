@@ -1,7 +1,10 @@
 when RULE_INIT {
     set static::stripe_redirect_url "https://demo.my-f5.com/pricing"
+    set static::redis_validate_ip "10.0.2.4"
     set static::redis_validate_url "http://10.0.2.4:5000/validate"
     log local0. "Paywall iRule initialized"
+    #Set a static variable to control debug logging. 1 = enabled, 0 = disabled
+    set static::validate_tokens_debug 1
 }
 
 when HTTP_REQUEST {
@@ -20,31 +23,92 @@ when HTTP_REQUEST {
     }
 
     # Only protect the premium endpoint
-    if { $uri starts_with "/api/v1/hyperlocal" } {
-        log local0. "Received request from IP [IP::client_addr] for URI: $uri"
+    if { [class match $uri equals dg_premium_endpoints] } {
+    
+        if { $static::my_irule_debug } {
+            log local0. "Received request from IP [IP::client_addr] for URI: $uri"
+        }
         
         # 1. Extract token
-        if { [HTTP::uri] contains "entitlement_token=" } {
+        if { $uri contains "entitlement_token=" } {
             # parse from query string
-            set token [URI::query [HTTP::uri] "entitlement_token"]
-            log local0. "token found in query string is $token"
+            set token [URI::query $uri "entitlement_token"]
+            if { $static::my_irule_debug } {
+              log local0. "token found in query string is $token"
+            }
         } elseif { [HTTP::header exists "X-Entitlement-Token"] } {
             set token [HTTP::header "X-Entitlement-Token"]
-            log local0. "token found in header X-Entitlement-Token is $token"
+            if { $static::my_irule_debug } {
+              log local0. "token found in header X-Entitlement-Token is $token"
+            }
         } else {
             set token ""
-            log local0. "no entitlement token was found in the request for $uri"
+            if { $static::my_irule_debug } {
+              log local0. "no entitlement token was found in the request for $uri"
+            }
         }
 
-        # 2. If no token → redirect to pricing (Stripe payment page)
+        # 2. If no token → rewrite the path to /pricing to generate a response including a checkout URL
         if { $token eq "" } {
-            HTTP::respond 302 Location $static::stripe_redirect_url?requested_endpoint=$uri
+            HTTP::uri "/pricing"
+            HTTP::header insert "x-requested-endpoint" $uri
+            HTTP::header insert "x-price-id" [class match -value $uri equals dg_premium_endpoints]
+            pool redis-pool-5000
             return
         }
 
         # 3. Validate token via Redis-proxy HTTP
-        set validate_url "${static::redis_validate_url}/${token}"
 
-
-    }
+        # Create validation request to backend
+        set validation_request "GET /validate HTTP/1.1\r\n"
+        append validation_request "Host: ${static::redis_validate_ip}\r\n"
+        append validation_request "Connection: close\r\n"
+        append validation_request "X-Entitlement-Token: $token\r\n"
+        append validation_request "\r\n"
+        
+        # Make HTTP call to backend validation endpoint
+        set conn [connect -timeout 5000 -idle 30 ${static::redis_validate_ip}:5000 ]
+        send $conn $validation_request
+        
+        # Read response
+        set response [recv -timeout 5000 $conn]
+        close $conn
+        
+        # Log response from validation request
+        if { [regexp {HTTP/1\.[01] (\d+)} $response -> status_code] } {
+          # Extract response body (content after double CRLF)
+          if { [regexp {\r\n\r\n(.*)$} $response -> response_body] } {
+            if { $static::my_irule_debug } {
+              log local0. "Validation response body: $response_body"
+            }
+          } else {
+            if { $static::my_irule_debug } {
+              log local0. "Validation response body: (empty or malformed)"
+            }
+          }
+          switch $status_code {
+            "200" {
+                # Validation successful - return 200 OK
+                if { $static::my_irule_debug } {
+                  log local0. "Token validation successful for token $token"
+                }
+            }
+            default {
+                # Validation failed, send them to /pricing endpoint
+                HTTP::uri "/pricing"
+                HTTP::header insert "x-requested-endpoint" $uri
+                HTTP::header insert "x-price-id" [class match -value $uri equals dg_premium_endpoints]
+                pool redis-pool-5000
+                return
+            }
+        }
+        } else {
+          # Unable to parse response or connection to validation endpoint failed, send to the /pricing endpoint
+          HTTP::uri "/pricing"
+          HTTP::header insert "x-requested-endpoint" $uri
+          HTTP::header insert "x-price-id" [class match -value $uri equals dg_premium_endpoints]
+          pool redis-pool-5000
+          return
+        }
+  }
 }
