@@ -11,16 +11,28 @@ python3 weather_api.py
 ```bash
 export STRIPE_API_KEY='sk_live_...'
 export STRIPE_ENDPOINT_SECRET='whsec_...'
-python3 stripe-webhook.py
+python3 stripe_webhook.py
 ```
 
 3. Now let's make API calls to our service.
 
+```bash
+curl https://demo.my-f5.com/api/v1/local  # -> this returns local weather data (mock API)
+curl https://demo.my-f5.com/api/v1/regional # -> returns regional data
+
+```
+
 ## Why is this cool?
 
-1. Notice that **the Weather API and the paywall iRule are completely separate**.
+1. **Business Value:** notice that the Weather API and the Paywall iRule are *separately managed*. This means:
+- The paywall can be managed independenly of the app
+- Different pricing models can be tested or implemented based on network metrics
 
-2. This can be **extended** for other API endpoints:
+2. **Best practices** for iRules are followed:
+- This will work for browser clients (allows use of cookies) and CLI/API clients (allows headers or request args)
+- iRule [debug logging](https://my.f5.com/manage/s/article/K55131641) can be toggled on/off for troubleshooting
+
+3.  This can be **extended** for other API endpoints:
 - **Multiple endpoints**: 
   - a datagroup can store premium endpoints and the prices for each endpoint. E.g.:
     - /api/v1/hyperlocal = $0.50 / hr
