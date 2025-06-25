@@ -1,0 +1,50 @@
+when RULE_INIT {
+    set static::stripe_redirect_url "https://demo.my-f5.com/pricing"
+    set static::redis_validate_url "http://10.0.2.4:5000/validate"
+    log local0. "Paywall iRule initialized"
+}
+
+when HTTP_REQUEST {
+    
+    set path [string tolower [HTTP::path]]
+    set uri [string tolower [HTTP::uri]]
+
+    # send the /stripe-webhook URI to the redis proxy to persist the entitlement_token in redis
+    if { $uri starts_with "/stripe-webhook" }  {
+       pool redis-pool-5000
+    }
+    
+    # send the /pricing URI to our paywall app to generate a checkout URL
+    if { $path eq "/pricing" }  {
+       pool redis-pool-5000
+    }
+
+    # Only protect the premium endpoint
+    if { $uri starts_with "/api/v1/hyperlocal" } {
+        log local0. "Received request from IP [IP::client_addr] for URI: $uri"
+        
+        # 1. Extract token
+        if { [HTTP::uri] contains "entitlement_token=" } {
+            # parse from query string
+            set token [URI::query [HTTP::uri] "entitlement_token"]
+            log local0. "token found in query string is $token"
+        } elseif { [HTTP::header exists "X-Entitlement-Token"] } {
+            set token [HTTP::header "X-Entitlement-Token"]
+            log local0. "token found in header X-Entitlement-Token is $token"
+        } else {
+            set token ""
+            log local0. "no entitlement token was found in the request for $uri"
+        }
+
+        # 2. If no token → redirect to pricing (Stripe payment page)
+        if { $token eq "" } {
+            HTTP::respond 302 Location $static::stripe_redirect_url?requested_endpoint=$uri
+            return
+        }
+
+        # 3. Validate token via Redis-proxy HTTP
+        set validate_url "${static::redis_validate_url}/${token}"
+
+
+    }
+}
