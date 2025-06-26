@@ -25,7 +25,7 @@ when HTTP_REQUEST {
     # Only protect the premium endpoint
     if { [class match $uri equals dg_premium_endpoints] } {
     
-        if { $static::my_irule_debug } {
+        if { $static::validate_tokens_debug } {
             log local0. "Received request from IP [IP::client_addr] for URI: $uri"
         }
         
@@ -33,17 +33,17 @@ when HTTP_REQUEST {
         if { $uri contains "entitlement_token=" } {
             # parse from query string
             set token [URI::query $uri "entitlement_token"]
-            if { $static::my_irule_debug } {
+            if { $static::validate_tokens_debug } {
               log local0. "token found in query string is $token"
             }
         } elseif { [HTTP::header exists "X-Entitlement-Token"] } {
             set token [HTTP::header "X-Entitlement-Token"]
-            if { $static::my_irule_debug } {
+            if { $static::validate_tokens_debug } {
               log local0. "token found in header X-Entitlement-Token is $token"
             }
         } else {
             set token ""
-            if { $static::my_irule_debug } {
+            if { $static::validate_tokens_debug } {
               log local0. "no entitlement token was found in the request for $uri"
             }
         }
@@ -78,18 +78,18 @@ when HTTP_REQUEST {
         if { [regexp {HTTP/1\.[01] (\d+)} $response -> status_code] } {
           # Extract response body (content after double CRLF)
           if { [regexp {\r\n\r\n(.*)$} $response -> response_body] } {
-            if { $static::my_irule_debug } {
+            if { $static::validate_tokens_debug } {
               log local0. "Validation response body: $response_body"
             }
           } else {
-            if { $static::my_irule_debug } {
+            if { $static::validate_tokens_debug } {
               log local0. "Validation response body: (empty or malformed)"
             }
           }
           switch $status_code {
             "200" {
                 # Validation successful - return 200 OK
-                if { $static::my_irule_debug } {
+                if { $static::validate_tokens_debug } {
                   log local0. "Token validation successful for token $token"
                 }
             }
