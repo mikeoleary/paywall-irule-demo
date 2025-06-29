@@ -23,7 +23,7 @@ when HTTP_REQUEST {
     }
 
     # Only protect the premium endpoint
-    if { [class match $uri equals dg_premium_endpoints] } {
+    if { [class match $path equals dg_premium_endpoints] } {
     
         if { $static::validate_tokens_debug } {
             log local0. "Received request from IP [IP::client_addr] for URI: $uri"
@@ -51,8 +51,8 @@ when HTTP_REQUEST {
         # 2. If no token → rewrite the path to /pricing to generate a response including a checkout URL
         if { $token eq "" } {
             HTTP::uri "/pricing"
-            HTTP::header insert "x-requested-endpoint" $uri
-            HTTP::header insert "x-price-id" [class match -value $uri equals dg_premium_endpoints]
+            HTTP::header insert "x-requested-endpoint" $path
+            HTTP::header insert "x-price-id" [class match -value $path equals dg_premium_endpoints]
             pool redis-pool-5000
             return
         }
@@ -96,8 +96,8 @@ when HTTP_REQUEST {
             default {
                 # Validation failed, send them to /pricing endpoint
                 HTTP::uri "/pricing"
-                HTTP::header insert "x-requested-endpoint" $uri
-                HTTP::header insert "x-price-id" [class match -value $uri equals dg_premium_endpoints]
+                HTTP::header insert "x-requested-endpoint" $path
+                HTTP::header insert "x-price-id" [class match -value $path equals dg_premium_endpoints]
                 pool redis-pool-5000
                 return
             }
@@ -105,8 +105,8 @@ when HTTP_REQUEST {
         } else {
           # Unable to parse response or connection to validation endpoint failed, send to the /pricing endpoint
           HTTP::uri "/pricing"
-          HTTP::header insert "x-requested-endpoint" $uri
-          HTTP::header insert "x-price-id" [class match -value $uri equals dg_premium_endpoints]
+          HTTP::header insert "x-requested-endpoint" $path
+          HTTP::header insert "x-price-id" [class match -value $path equals dg_premium_endpoints]
           pool redis-pool-5000
           return
         }
