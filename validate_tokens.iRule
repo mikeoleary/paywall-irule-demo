@@ -1,7 +1,5 @@
 when RULE_INIT {
     set static::stripe_redirect_url "https://demo.my-f5.com/pricing"
-    set static::redis_validate_ip "10.0.2.4"
-    set static::redis_validate_url "http://10.0.2.4:5000/validate"
     log local0. "Paywall iRule initialized"
     #Set a static variable to control debug logging. 1 = enabled, 0 = disabled
     set static::validate_tokens_debug 1
@@ -88,10 +86,17 @@ when HTTP_REQUEST {
           }
           switch $status_code {
             "200" {
-                # Validation successful - return 200 OK
+                # Validation successful, forward to pool
                 if { $static::validate_tokens_debug } {
                   log local0. "Token validation successful for token $token"
                 }
+            }
+            "404" {
+                # Token failed validation - return 200 but inform client that validation failed
+                if { $static::validate_tokens_debug } {
+                  log local0. "Token validation failed for token $token"
+                }
+                HTTP::respond 200 content "Token validation failed for token $token"
             }
             default {
                 # Validation failed, send them to /pricing endpoint

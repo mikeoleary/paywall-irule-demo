@@ -47,3 +47,14 @@ curl https://demo.my-f5.com/api/v1/regional # -> returns regional data
 - **Rate limiting**:
   - Rate limiting could be enforced in iRule logic + redis, outside of the app team
   - bypassing the iRule could be allowed, i.e., for internal requests the paywall could be waived
+
+## Why Use iRules LX?
+| Capability | Benefit |
+| ------------- | ------------- |
+| ✅ Node.js engine | Full programming model |
+| ✅ HTTP clients | Talk to Stripe, REST APIs, etc. |
+| ✅ JSON parsing | Native in Node.js |
+| ✅ Redis | Many clients supported |
+| ✅ Local filesystem | Store cache, configs |
+| ✅ Asynchronous logic | Avoid delays in request flow |
+| ✅ Tight F5 integration | Inline with traffic enforcement |
