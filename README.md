@@ -25,12 +25,13 @@ curl https://demo.my-f5.com/api/v1/regional # -> returns regional data
 ## Why is this cool?
 
 1. **Business Value:** notice that the Weather API and the Paywall iRule are *separately managed*. This means:
-- The paywall can be managed independenly of the app
-- Different pricing models can be tested or implemented based on network metrics
+  - The paywall can be managed independently of the app
+  - Different pricing models can be tested or implemented based on network metrics
 
 2. **Best practices** for iRules are followed:
-- This will work for browser clients (allows use of cookies) and CLI/API clients (allows headers or request args)
+- This is intended for API clients / web crawlers, but will work for browser clients and CLI/API clients alike (allows use of HTTP Headers or URI query parameters for easy browser testing) 
 - iRule [debug logging](https://my.f5.com/manage/s/article/K55131641) can be toggled on/off for troubleshooting
+- Caching of frequently accessed data is enabled with the [table](https://clouddocs.f5.com/api/irules/table.html) command.
 
 3.  This can be **extended** for other API endpoints:
 - **Multiple endpoints**: 
