@@ -58,3 +58,11 @@ curl https://demo.my-f5.com/api/v1/regional # -> returns regional data
 | ✅ Local filesystem | Store cache, configs |
 | ✅ Asynchronous logic | Avoid delays in request flow |
 | ✅ Tight F5 integration | Inline with traffic enforcement |
+
+## Why NOT to Use iRules LX?
+
+| Note | Reason |
+| ------------- | ------------- |
+| ❓ NodeJS 6.9.1 | Outdated NodeJS version |
+| ❓ Supportability | More difficult than NodeJS on external VM/container |
+| ❌ Future support | No plan for iRulesLX in BIG-IP Next |

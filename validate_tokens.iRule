@@ -3,6 +3,7 @@ when RULE_INIT {
     log local0. "Paywall iRule initialized"
     #Set a static variable to control debug logging. 1 = enabled, 0 = disabled
     set static::validate_tokens_debug 1
+    set static::redis_validate_ip "10.0.2.4"
 }
 
 when HTTP_REQUEST {
