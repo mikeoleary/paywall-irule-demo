@@ -1,10 +1,25 @@
 from flask import Flask, request, jsonify, abort
-import stripe, redis, time, os, uuid
+import stripe, time, os, uuid, requests
 
 app = Flask(__name__)
 stripe.api_key = os.environ['STRIPE_API_KEY']
 YOUR_ENDPOINT_SECRET =  os.environ['STRIPE_ENDPOINT_SECRET']
-r = redis.Redis()
+TOKEN_CACHE_SECRET =  os.environ['TOKEN_CACHE_SECRET']
+
+def push_token_to_bigip(token):
+    try:
+        resp = requests.post(
+            "https://demo.my-f5.com/cache-token",
+            headers={
+                "X-Webhook-Secret": TOKEN_CACHE_SECRET,  # must match static::shared_token_secret
+                "Content-Type": "application/json"
+            },
+            json={"token": token},
+            verify=False  # optional: add CA validation if needed
+        )
+        print("BIG-IP cache response:", resp.status_code)
+    except Exception as e:
+        print(f"Failed to push token to BIG-IP: {e}")
 
 # The /stripe-webhook endpoint is intended to receive the webhook payload from Stripe after a successful payment
 # the webhook payload will contain the session object, which includes the metadata and an entitlement token we set when creating the checkout session
@@ -26,8 +41,8 @@ def stripe_webhook():
         # We’ll use session.client_reference_id or metadata["token"]
         token = session["metadata"]["entitlement_token"]
         expires = int(time.time()) + 3600  # 1-hour TTL
-        # Store in Redis: key=token, value="hyperlocal", with TTL
-        r.setex(f"{token}", expires - int(time.time()), "hyperlocal")
+        # Store in token in BIG-IP irules table space
+        push_token_to_bigip(token)
     return "", 200
 
 # The /pricing endpoint is intended to generate a checkout URL to purchase access to the endpoint they have requested
@@ -39,8 +54,6 @@ def pricing():
 
     # 1) Generate a fresh one-time token
     new_token = uuid.uuid4().hex
-    # We'll set a short-lived stub entry; real entry comes via webhook
-    r.setex(f"{new_token}", 300, "pending")  # 5min TTL pending
 
     # 2) Create Stripe Checkout session passing token in metadata & success_url
     try:
@@ -67,15 +80,6 @@ def pricing():
         "checkout_url": session_url,
         "version": "1.0"
     })
-
-# The /validate endpoint checks if the token exists in Redis
-@app.route('/validate', methods=['GET'])
-def validate():
-    entitlement_token = request.headers.get("X-Entitlement-Token", "None")
-    if r.exists(f"{entitlement_token}"):
-        return r.get(f"{entitlement_token}").decode(), 200
-    else:
-        abort(404)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
