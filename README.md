@@ -1,8 +1,8 @@
-# paywall-irule-demo
+# PayGate
+*Monetize premium API access at the edge with zero backend changes.*
 
 ## Architectural overview
 ![Paywall iRule image](images/paywall-iRule.png)
-
 
 ## Why is this cool?
 
